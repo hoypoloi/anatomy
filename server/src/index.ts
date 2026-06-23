@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import authRoutes from './routes/auth';
 import ridesRoutes from './routes/rides';
 import driversRoutes from './routes/drivers';
@@ -12,11 +13,14 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+const isProd = process.env.NODE_ENV === 'production';
+const corsOrigin = isProd ? false : (process.env.CLIENT_URL || 'http://localhost:5173');
+
 const io = new Server(httpServer, {
-  cors: { origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true },
+  cors: isProd ? {} : { origin: corsOrigin, credentials: true },
 });
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors(isProd ? {} : { origin: corsOrigin, credentials: true }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
@@ -24,6 +28,11 @@ app.use('/api/rides', ridesRoutes);
 app.use('/api/drivers', driversRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', app: 'FairRide' }));
+
+// Serve React frontend in production
+const CLIENT_DIST = path.join(__dirname, '..', '..', 'client', 'dist');
+app.use(express.static(CLIENT_DIST));
+app.get('*', (_req, res) => res.sendFile(path.join(CLIENT_DIST, 'index.html')));
 
 // Socket.IO: real-time ride events
 const driverSockets = new Map<number, string>(); // driverId -> socketId
